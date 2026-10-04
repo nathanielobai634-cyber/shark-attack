@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Shark Attack</title>
+<style>
+html,body{margin:0;background:#03172b;color:#fff;font-family:system-ui,Arial,sans-serif}
+.wrap{max-width:1000px;margin:auto;padding:14px}.hud,.shop,.controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.hud{justify-content:space-between;margin-bottom:10px}.pill,button{background:linear-gradient(180deg,#123d63,#08243f);border:1px solid #2e91cf;color:#fff;border-radius:12px;padding:9px 12px;font-weight:800;box-shadow:inset 0 0 12px #36c9ff22}
+button{cursor:pointer}.selected{outline:3px solid #56d7ff}.board{border-radius:18px;overflow:hidden;border:1px solid #315b77;background:#42b5dc}
+svg{display:block;width:100%;height:auto;touch-action:manipulation}.shop,.controls{margin-top:10px}.hint{color:#b8d2e5;margin-top:9px;font-size:14px}
+.corner-shark{position:fixed;right:18px;bottom:18px;width:72px;height:72px;border-radius:50%;border:2px solid #65dcff;background:#0c2639;font-size:38px;z-index:30;box-shadow:0 8px 30px #0008}
+.shark-shop-overlay{position:fixed;inset:0;background:rgba(0,0,0,.82);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);display:none;align-items:center;justify-content:center;z-index:25}
+.shark-shop-overlay.open{display:flex}
+.shark-shop-card{width:min(520px,88vw);background:linear-gradient(180deg,#092b4a,#061827);border:2px solid #d8ae43;border-radius:22px;padding:22px;box-shadow:0 20px 70px #000,0 0 28px #2fd6ff33}
+.shark-shop-card h2{margin:0 0 8px;font-size:30px}
+.shark-shop-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:16px 0}
+.shark-item{background:#102c45;border:1px solid #315b77;border-radius:14px;padding:14px;text-align:center;font-weight:800}
+#shop button{min-height:86px;font-size:16px;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:6px}
+#shop button.selected{outline:3px solid #65dcff;background:#17415f}
+.shark-item .fish{font-size:34px;display:block;margin-bottom:5px}
+.close-shop{width:100%;font-size:16px}
+
+@keyframes wreckShake{
+  0%{transform:translate(805px,342px) rotate(0)}
+  15%{transform:translate(799px,342px) rotate(-3deg)}
+  30%{transform:translate(812px,344px) rotate(4deg)}
+  45%{transform:translate(800px,347px) rotate(-5deg)}
+  60%{transform:translate(810px,352px) rotate(3deg)}
+  100%{transform:translate(805px,365px) rotate(-7deg)}
+}
+@keyframes crackFlash{
+  0%,25%{opacity:0}
+  35%,100%{opacity:1}
+}
+@keyframes defeatFade{
+  from{opacity:0} to{opacity:1}
+}
+#shipwreck.defeated{transform-origin:0 40px;animation:wreckShake 1.5s ease-in-out forwards}
+#shipCracks{opacity:0}
+#shipCracks.show{animation:crackFlash 1.5s ease-in forwards}
+#defeatText{opacity:0}
+#defeatText.show{animation:defeatFade .6s 1s forwards}
+html,body{width:100%;height:100%;margin:0;overflow:hidden}
+body{min-height:100vh}
+.wrap{width:100vw!important;max-width:none!important;height:100vh;box-sizing:border-box;margin:0!important;padding:12px!important}
+svg{width:100%!important;height:calc(100vh - 190px)!important;min-height:360px}
+.shark-shop-overlay{width:100vw;height:100vh}
+.shark-shop-card{width:min(1050px,94vw);height:min(760px,90vh);max-height:90vh;overflow:auto;padding:28px}
+
+.shop-section{margin:22px 0 30px}
+.shop-section-title{font-size:24px;font-weight:900;margin-bottom:6px;padding-bottom:9px;border-bottom:1px solid #315b77}
+.shop-section-sub{font-size:14px;opacity:.75;margin-bottom:14px}
+.shop-section-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px}
+.shop-shark-card{background:linear-gradient(145deg,#123c61,#071e35);border:1px solid #d8ae43;border-radius:16px;padding:17px;min-height:100px;cursor:pointer;font-weight:900;box-shadow:inset 0 0 18px #37d9ff18}
+.shop-shark-card.selected{outline:3px solid #ffd75a;background:#15567a;box-shadow:0 0 22px #3edcff88}
+.shop-shark-name{font-size:17px}
+.shop-shark-price{font-size:14px;margin-top:8px}
+
+.shop-x{position:absolute;top:16px;right:18px;width:46px;height:46px;border-radius:50%;font-size:30px;line-height:38px;font-weight:900;padding:0;cursor:pointer;z-index:3}
+.shark-shop-card{position:relative}
+</style>
+
+<style>
+.tap-hand-indicator{
+  position:fixed;
+  z-index:99999;
+  pointer-events:none;
+  font-size:42px;
+  line-height:1;
+  transform:translate(-12px,-8px) scale(.65);
+  opacity:0;
+  filter:drop-shadow(0 3px 3px rgba(0,0,0,.45));
+  animation:sharkTapHand .7s ease-out forwards;
+}
+@keyframes sharkTapHand{
+  0%{opacity:1;transform:translate(-12px,-8px) scale(.65)}
+  35%{opacity:1;transform:translate(-12px,-8px) scale(1)}
+  100%{opacity:0;transform:translate(-12px,-20px) scale(1.08)}
+}
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <div class="hud"><div class="pill">🪙 <span id="money">250</span></div><div class="pill">🌊 Wave <span id="wave">1</span></div><div class="pill">🚢 Base <span id="lives">100</span></div></div>
+  <div class="board">
+  <svg id="game" viewBox="0 0 900 520" aria-label="Shark Defence">
+    <defs>
+      <linearGradient id="sea" x2="0" y2="1"><stop stop-color="#72d4ed"/><stop offset="1" stop-color="#0876a6"/></linearGradient>
+      <linearGradient id="skin" x2="0" y2="1"><stop stop-color="#7d929e"/><stop offset=".52" stop-color="#526873"/><stop offset=".55" stop-color="#e3e8ea"/><stop offset="1" stop-color="#c8d1d5"/></linearGradient>
+    </defs>
+    <rect width="900" height="520" fill="url(#sea)"/>
+    <circle cx="110" cy="115" r="95" fill="#36d7ff" opacity=".08"/><circle cx="720" cy="125" r="125" fill="#36d7ff" opacity=".07"/>
+    <g opacity=".78" stroke="#082f50" stroke-width="5">
+      <path d="M90 300V155H145V300M105 155V120H130V155M175 310V185H225V310M190 185V145H210V185" fill="#12688a"/>
+      <path d="M610 310V160H665V310M625 160V112H650V160M700 315V195H755V315M716 195V150H740V195" fill="#12688a"/>
+      <path d="M330 300V125H430V300L380 70Z" fill="#177b9b"/>
+    </g>
+    <g fill="none" stroke="#e4bd55" stroke-width="6" opacity=".9">
+      <path d="M60 318V225Q60 190 95 190Q130 190 130 225V318"/>
+      <path d="M765 320V220Q765 182 805 182Q845 182 845 220V320"/>
+      <path d="M345 305V190Q345 155 380 155Q415 155 415 190V305"/>
+    </g>
+    <g fill="#e4bd55" opacity=".9"><circle cx="95" cy="190" r="7"/><circle cx="805" cy="182" r="7"/><circle cx="380" cy="155" r="7"/></g>
+    <path d="M0 385C120 315 235 420 355 355S590 320 700 365 820 390 930 335" fill="none" stroke="#b8eff5" stroke-width="68" opacity=".62"/>
+    <path d="M0 420Q130 380 250 430T500 425T900 410V520H0Z" fill="#064e6b" opacity=".75"/>
+    <g fill="#b657c9" opacity=".9"><circle cx="75" cy="445" r="16"/><circle cx="100" cy="456" r="12"/><circle cx="680" cy="452" r="18"/><circle cx="705" cy="462" r="11"/></g>
+    <text x="450" y="48" text-anchor="middle" fill="#ffe08a" stroke="#684a13" stroke-width="2" paint-order="stroke" font-size="34" font-weight="900">⚜ ATLANTIS ⚜</text>
+    <text x="24" y="38" fill="#dff8ff" font-size="22" font-weight="900">SHARK ATTACK</text>
+    
+<g id="shipHealth">
+  <rect x="745" y="274" width="130" height="17" rx="8" fill="#17313d" stroke="#eaf9ff" stroke-width="2"/>
+  <rect id="shipHealthFill" x="749" y="278" width="122" height="9" rx="5" fill="#eaf9ff"/>
+  <text id="shipHealthText" x="810" y="267" text-anchor="middle" fill="#ffffff" font-size="15" font-weight="900">SHIP 100 / 100</text>
+</g>
+<g id="shipwreck" transform="translate(805 342)">
+  <ellipse cx="0" cy="54" rx="88" ry="19" fill="#075c7d" opacity=".45"/>
+  <path d="M-70 14L-50 60H49L73 20L40 31L12 22L-17 34L-45 23Z" fill="#714a2c" stroke="#3e2a1d" stroke-width="5"/>
+  <path d="M-48 29L45 42M-38 43L36 53" stroke="#a87343" stroke-width="5" opacity=".75"/>
+  <path d="M-8 27V-65" stroke="#493222" stroke-width="8"/>
+  <path d="M-5-61L43-37L-5-23Z" fill="#d7c6a1" stroke="#554633" stroke-width="4"/>
+  <path d="M8-54L19-42M22-47L30-38" stroke="#8d7655" stroke-width="3"/>
+  <path d="M-62 17L-82-2M55 26L79 8" stroke="#493222" stroke-width="8" stroke-linecap="round"/>
+  <circle cx="-28" cy="38" r="7" fill="#142d36" stroke="#b17b45" stroke-width="4"/>
+  <circle cx="5" cy="43" r="7" fill="#142d36" stroke="#b17b45" stroke-width="4"/>
+  <path d="M-73 61Q0 75 54 60" fill="none" stroke="#d7b66c" stroke-width="4"/>
+  <text x="-55" y="88" fill="#eaf9ff" font-size="17" font-weight="900">SHIPWRECK BASE</text>
+  <g id="shipCracks" fill="none" stroke="#241710" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M-13 25L-2 34-14 43-2 52-10 61"/>
+    <path d="M19 31L10 40 22 46 13 57"/>
+    <path d="M-47 30L-37 38-45 49"/>
+  </g>
+</g>
+<g id="towers"></g><g id="enemies"></g><g id="shots"></g><g id="splashes"></g>
+<g id="defeatText">
+  <rect x="270" y="190" width="360" height="92" rx="22" fill="#071827" opacity=".9"/>
+  <text x="450" y="230" text-anchor="middle" fill="#ffffff" font-size="35" font-weight="900">SHIPWRECK DESTROYED!</text>
+  <text x="450" y="260" text-anchor="middle" fill="#bdeeff" font-size="18" font-weight="800">DEFEAT</text>
+</g>
+  </svg></div>
+  
+  <div class="controls"><button id="start">Start Wave</button><button id="speed">Speed x1</button><button id="reset">Reset</button></div>
+  <div class="hint" id="hint">🏛️ Atlantis Map • Easy Wave 1: 5 slow, weak fish, including 2 golden fish. Click each golden fish for 40 bonus coins.</div>
+</div>
+<script>
+const $=s=>document.querySelector(s), svg=$("#game"), TG=$("#towers"), EG=$("#enemies"), SG=$("#shots"),WG=$("#splashes");
+let money=250,wave=1,lives=100,selected=null,running=false,speed=1,last=0,spawnClock=0,spawned=0,enemies=[],towers=[],shots=[],splashes=[],defeatPlayed=false;
+const types=[
+{name:"Basic Shark",cost:120,range:5000,damage:4.05,rate:500,kind:"reef",scale:1},
+{name:"Hammerhead",cost:220,range:5000,damage:8.1,rate:625,kind:"hammer",scale:1.08},
+{name:"Tiger Shark",cost:300,range:5000,damage:32.4,rate:812,kind:"tiger",scale:1.12},
+{name:"Whale Shark",cost:400,range:5000,damage:32.4,rate:594,kind:"whale",scale:1.22},
+{name:"Leviathan",cost:500,range:5000,damage:141.75,rate:360,kind:"leviathan",scale:1.5},
+{name:"Business Shark",cost:500,range:0,damage:0,rate:10000,kind:"business",scale:1.08,income:10},
+{name:"Mako Shark",cost:600,range:5000,damage:32.4,rate:438,kind:"mako",scale:1.12},
+{name:"Great White",cost:750,range:5000,damage:32.4,rate:550,kind:"greatwhite",scale:1.35},
+{name:"Megalodon",cost:1000,range:5000,damage:249.75,rate:300,kind:"megalodon",scale:1.75},
+{name:"Poseidon Shark",cost:5000,range:5000,damage:420,rate:240,kind:"poseidon",scale:1.85}
+];
+const path=[[-70,390],[115,325],[250,400],[390,330],[535,390],[690,315],[960,370]];
+function ui(){ $("#money").textContent=money;$("#wave").textContent=wave;$("#lives").textContent=lives }
+function pathPoint(t){let total=0,segs=[];for(let i=1;i<path.length;i++){let a=path[i-1],b=path[i],len=Math.hypot(b[0]-a[0],b[1]-a[1]);segs.push({a,b,len});total+=len}let d=Math.max(0,Math.min(1,t))*total;for(const s of segs){if(d<=s.len){let q=d/s.len;return{x:s.a[0]+(s.b[0]-s.a[0])*q,y:s.a[1]+(s.b[1]-s.a[1])*q}}d-=s.len}return{x:960,y:370}}
+function shark(x,y,k,sc){
+ let top =
+   k==="reef"?"#2f8fb8":
+   k==="hammer"?"#6f8795":
+   k==="tiger"?"#d28a38":
+   k==="whale"?"#4e8fa8":
+   k==="leviathan"?"#334f70":
+   k==="business"?"#3a9b68":
+   k==="mako"?"#458bb5":
+   k==="greatwhite"?"#7f9dac":
+   k==="megalodon"?"#3f6278":
+   k==="poseidon"?"#167fc5":"#4f8098";
+ let underside="#d9e0e2";
+ let stripes=k==="tiger"?'<path d="M-34-17l8 19M-19-21l9 22M-3-23l8 22M13-21l8 18" stroke="#263940" stroke-width="4" opacity=".78"/>':'';
+ let spots=k==="whale"?'<g fill="#b9d3da" opacity=".72"><circle cx="-42" cy="-12" r="2.5"/><circle cx="-28" cy="-17" r="2"/><circle cx="-13" cy="-18" r="2.5"/><circle cx="2" cy="-16" r="2"/><circle cx="17" cy="-12" r="2.5"/><circle cx="30" cy="-7" r="2"/></g>':'';
+ let hammer=k==="hammer"?'<path d="M37-13L60-21 68-15 58-8 68 0 60 7 37 4Z" fill="'+top+'" stroke="#1d3038" stroke-width="2.5"/><circle cx="60" cy="-15" r="3" fill="#101820"/>':'';
+ let levi=k==="leviathan"?'<path d="M-18-25L-5-48 8-25" fill="#263b46" stroke="#1d3038" stroke-width="3"/><circle cx="42" cy="-7" r="3" fill="#75e9ff"/>':'';
+ let poseidon=k==="poseidon"?'<path d="M-14-30L-3-57 8-30" fill="#e4bd55" stroke="#725413" stroke-width="3"/><path d="M-2-54v-18M-2-72l-10 12M-2-72L8-60M-12-60h20" stroke="#ffe17a" stroke-width="4" fill="none" stroke-linecap="round"/><path d="M-57-14Q-32-38-8-26" stroke="#55e7ff" stroke-width="4" fill="none" opacity=".9"/><circle cx="43" cy="-8" r="7" fill="#7cf4ff" opacity=".55"/>':'';
+ return `<g transform="translate(${x} ${y}) scale(${sc})">
+ <path d="M-62-8L-92-34-87-7-100 0-87 8-92 35-61 10C-43 19-22 22 1 19 24 17 44 10 57 2 63-2 61-8 54-13 38-24 15-29-11-27-32-26-49-20-62-8Z" fill="${top}" stroke="#1d3038" stroke-width="3"/>
+ <path d="M-48 7Q-19 27 14 18 38 13 55 2 43 19 16 27-19 35-54 14Z" fill="${underside}" opacity=".96"/>
+ <path d="M-15-25L-1-51 12-25Z" fill="${top}" stroke="#1d3038" stroke-width="3"/>
+ <path d="M-10 18L9 42 17 18M16 16l29 21-10-29" fill="${top}" stroke="#1d3038" stroke-width="3"/>
+ ${hammer}${stripes}${spots}${levi}${poseidon}
+ <circle cx="43" cy="-8" r="4.3" fill="#0a1115"/><circle cx="44" cy="-9" r="1.2" fill="white"/>
+ <path d="M56 1q-9 5-18 3" stroke="#17272e" stroke-width="2.3" fill="none"/>
+ <path d="M28-2l-7-2M29 3l-8-1M28 8h-7" stroke="#334951" stroke-width="2"/>
+ </g>`;
+}
+function fish(x,y,e){
+ let s=e.big?1.5:e.size, c=e.color, c2=e.color2;
+ let shape=e.species===0
+ ? `<path d="M-22 0Q-7-16 14-8Q29 0 14 8Q-7 16-22 0Z" fill="${c}" stroke="#593b28" stroke-width="2.5"/><path d="M-20 0L-36-13V13Z" fill="${c2}" stroke="#593b28" stroke-width="2.5"/>`
+ : e.species===1
+ ? `<path d="M-20 0Q-8-22 13-13Q29 0 13 13Q-8 22-20 0Z" fill="${c}" stroke="#593b28" stroke-width="2.5"/><path d="M-18 0L-34-16V16Z" fill="${c2}" stroke="#593b28" stroke-width="2.5"/>`
+ : `<path d="M-26 0Q-8-11 18-7Q31 0 18 7Q-8 11-26 0Z" fill="${c}" stroke="#593b28" stroke-width="2.5"/><path d="M-23 0L-39-10V10Z" fill="${c2}" stroke="#593b28" stroke-width="2.5"/>`;
+ return `<g transform="translate(${x} ${y}) scale(${s})" style="filter:drop-shadow(0 2px 2px rgba(0,40,70,.45))">${shape}<path d="M-5-9l5-10 8 11" fill="${c2}" stroke="#593b28" stroke-width="2"/><circle cx="13" cy="-4" r="4" fill="white"/><circle cx="14" cy="-4" r="2" fill="#111"/></g>`;
+}
+const fishColors=[["#ff9d3d","#f06c32"],["#ffd34e","#f28c28"],["#55d6be","#218c82"],["#7cc8ff","#357fb2"],["#e889d4","#a64e98"],["#9bdd5b","#5a9e38"],["#ff7070","#b94141"]];
+function newFish(){
+ let pair=fishColors[Math.floor(Math.random()*fishColors.length)];
+ return {species:Math.floor(Math.random()*3),color:pair[0],color2:pair[1],size:.82+Math.random()*.38};
+}
+window.addEventListener("DOMContentLoaded",()=>{
+ types.forEach((t,i)=>{
+   let b=document.createElement("button");
+   b.className="shop-shark-card";
+   b.innerHTML=`<div class="shop-shark-name">🦈 ${t.name}</div><div class="shop-shark-price">🪙 ${t.cost} coins</div>`;
+   b.onclick=()=>{
+     selected=t;
+     document.querySelectorAll(".shop-shark-card").forEach(x=>x.classList.remove("selected"));
+     b.classList.add("selected");
+     document.getElementById("sharkShopOverlay").classList.remove("open");
+     $("#hint").textContent=`${t.name} selected for ${t.cost} coins — tap the map to place it.`;
+   };
+   (i<5?document.getElementById("basicShop"):document.getElementById("customShop")).appendChild(b);
+ });
+});
+svg.onclick=e=>{
+ let r=svg.getBoundingClientRect(),x=(e.clientX-r.left)/r.width*900,y=(e.clientY-r.top)/r.height*520;
+ let clickedGold=null,best=38;
+ for(const f of enemies){
+   if(!f.golden||f.goldClaimed)continue;
+   let p=pathPoint(f.p),d=Math.hypot(p.x-x,p.y-y);
+   if(d<best){best=d;clickedGold=f}
+ }
+ if(clickedGold){
+   money+=40;
+   enemies=enemies.filter(f=>f!==clickedGold);
+   ui();render();
+   $("#hint").textContent="Golden fish collected! +40 coins.";
+   return;
+ }
+ if(!selected)return;
+ if(y>275){$("#hint").textContent="Place sharks above the fish route.";return}
+ if(money<selected.cost){$("#hint").textContent="Not enough coins.";return}
+ money-=selected.cost;towers.push({x,y,type:selected,cool:0,angle:0,flip:-1,incomeClock:0});ui();render()
+};
+function shoot(t){let best=null,bd=1e9;for(const e of enemies){let p=pathPoint(e.p),d=Math.hypot(p.x-t.x,p.y-t.y);if(d<t.type.range&&d<bd){best=e;bd=d}}if(best)shots.push({x:t.x+40*t.type.scale,y:t.y,e:best,d:t.type.damage})}
+function render(){
+ TG.innerHTML=towers.map(t=>`<circle cx="${t.x}" cy="${t.y}" r="${t.type.range}" fill="none" stroke="white" stroke-opacity=".12" stroke-dasharray="5 8"/><g transform="translate(${t.x} ${t.y}) scale(${t.flip||1} 1) translate(${-t.x} ${-t.y})">${shark(t.x,t.y,t.type.kind,t.type.scale)}</g>`).join("");
+ EG.innerHTML=enemies.map(e=>{let p=pathPoint(e.p),hp=Math.max(0,40*e.hp/e.max);return fish(p.x,p.y,e)+`${e.boss?`<text x="${p.x}" y="${p.y-62}" text-anchor="middle" fill="white" font-size="15" font-weight="900">BOSS</text>`:e.golden&&!e.goldClaimed?`<text x="${p.x}" y="${p.y-42}" text-anchor="middle" fill="#fff3a3" font-size="12" font-weight="900">CLICK +40 🪙</text>`:""}<rect x="${p.x-20}" y="${p.y-31}" width="40" height="5" rx="3" fill="#17313d"/><rect x="${p.x-20}" y="${p.y-31}" width="${hp}" height="5" rx="3" fill="white"/>`}).join("");
+ SG.innerHTML=shots.map(s=>`<g><circle cx="${s.x}" cy="${s.y}" r="7" fill="#dff9ff" opacity=".92"/><circle cx="${s.x-5}" cy="${s.y+3}" r="3" fill="#75ddff"/><path d="M${s.x-13} ${s.y+2} Q${s.x-6} ${s.y-7} ${s.x} ${s.y}" fill="none" stroke="#a8ecff" stroke-width="5" stroke-linecap="round"/></g>`).join("");
+ WG.innerHTML=splashes.map(w=>`<g opacity="${Math.max(.15,w.life/1500)}"><circle cx="${w.x}" cy="${w.y}" r="16" fill="#9be9ff" opacity=".45"/><path d="M${w.x-18} ${w.y}q8-12 15 0M${w.x+2} ${w.y-7}q9-14 17 0M${w.x-7} ${w.y+10}q7-9 14 0" fill="none" stroke="#e2faff" stroke-width="5" stroke-linecap="round"/></g>`).join("");
+ let fill=document.querySelector("#shipHealthFill"),txt=document.querySelector("#shipHealthText");
+ if(fill){fill.setAttribute("width",122*Math.max(0,lives)/100);txt.textContent=`SHIP ${Math.max(0,lives)} / 100`; }
+}
+function loop(now){let dt=Math.min(45,now-last||16);last=now;if(running){
+ spawnClock+=dt*speed;let firstWave=wave===1, normalFish=firstWave?5:Math.max(20,20+(wave-1)*2), bossWave=!firstWave&&wave%5===0, total=normalFish+(bossWave?1:0);
+ if(spawned<total&&spawnClock>Math.max(220,650-wave*7)){
+   let look=newFish(), isBoss=bossWave&&spawned===total-1, isGolden=firstWave&&(spawned===1||spawned===3);
+   let hp=isBoss?(700+wave*120):(firstWave?16:(34+wave*10));
+   enemies.push({
+     p:0,hp:hp,max:hp,
+     s:isBoss?.000020:(firstWave?.000028:(.000045+wave*.000002)),
+     big:isBoss,boss:isBoss,golden:isGolden,goldClaimed:false,id:Date.now()+Math.random(),
+     size:isBoss?2.2:look.size,
+     species:look.species,
+     color:isBoss?"#8b2f3f":isGolden?"#ffd700":look.color,
+     color2:isBoss?"#451923":isGolden?"#ffae00":look.color2
+   });
+   spawned++;spawnClock=0;
+ }
+ enemies.forEach(e=>e.p+=e.s*dt*speed);
+ towers.forEach(t=>{
+ if(t.type.kind==="business"){
+   t.incomeClock=(t.incomeClock||0)+dt*speed;
+   while(t.incomeClock>=10000){
+     t.incomeClock-=10000;
+     money+=(t.type.income||10);
+     ui();
+     splashes.push({x:t.x,y:t.y-35,life:1500,coin:true});
+   }
+ }
+});
+let lead=enemies.length?enemies.reduce((a,b)=>a.p>b.p?a:b):null;
+ if(lead){
+   let lp=pathPoint(lead.p);
+   towers.forEach(t=>{
+     t.angle=0;t.flip=-1;
+   });
+ }
+ towers.forEach(t=>{t.cool+=dt*speed;if(t.cool>=t.type.rate){shoot(t);t.cool=0}});
+ shots.forEach(s=>{if(!s.e||!enemies.includes(s.e))return;let p=pathPoint(s.e.p);s.x+=(p.x-s.x)*.25;s.y+=(p.y-s.y)*.25;if(Math.hypot(p.x-s.x,p.y-s.y)<18){s.e.hp-=s.d;s.hit=true;splashes.push({x:p.x,y:p.y,life:1500})}});
+ shots=shots.filter(s=>!s.hit&&s.e&&enemies.includes(s.e));splashes.forEach(w=>w.life-=dt*speed);splashes=splashes.filter(w=>w.life>0);
+ enemies=enemies.filter(e=>{if(e.hp<=0){money+=e.boss?100:(e.golden?40:10);return false}if(e.p>=1){lives-=e.boss?5:1;return false}return true});
+ if(lives<=0){
+   lives=0; running=false;
+   if(!defeatPlayed){
+     defeatPlayed=true;
+     let wreck=document.querySelector("#shipwreck");
+     let cracks=document.querySelector("#shipCracks");
+     let defeat=document.querySelector("#defeatText");
+     if(wreck) wreck.classList.add("defeated");
+     if(cracks) cracks.classList.add("show");
+     if(defeat) defeat.classList.add("show");
+   }
+   $("#hint").textContent="The shipwreck cracked apart — defeat! Hit Reset to try again.";
+ }
+ if(running&&spawned>=total&&enemies.length===0){wave++;running=false;spawned=0;spawnClock=0;enemies=[];shots=[];splashes=[];towers.forEach(t=>{t.angle=0;t.flip=-1;t.cool=0});$("#hint").textContent="Wave cleared! Sharks reset to their starting direction — start the next wave."}
+ ui()}render();requestAnimationFrame(loop)}
+$("#start").onclick=()=>{if(!running&&lives>0){running=true;spawnClock=999;$("#hint").textContent="Fish incoming — the sharks will track the lead fish!"}};
+$("#speed").onclick=()=>{speed=speed===1?2:speed===2?3:1;$("#speed").textContent=`Speed x${speed}`};
+$("#reset").onclick=()=>{money=250;wave=1;lives=100;selected=null;running=false;speed=1;spawnClock=0;spawned=0;enemies=[];towers=[];shots=[];$("#speed").textContent="Speed x1";document.querySelectorAll("#shop button").forEach(x=>x.classList.remove("selected"));$("#hint").textContent="Easy Wave 1: 5 slow, weak fish, including 2 golden fish. Click each golden fish for 40 bonus coins.";ui();render()};
+ui();render();requestAnimationFrame(loop);
+</script>
+
+<button id="sharkShopIcon" class="corner-shark" title="Shark Shop" aria-label="Open Shark Shop">🦈</button>
+<div id="sharkShopOverlay" class="shark-shop-overlay">
+  <div class="shark-shop-card">
+    <h2>🐟 Shark Shop</h2>
+    <div>Shark collection</div>
+    <div class="shop-section">
+      <div class="shop-section-title">🔱 Atlantis Sharks</div>
+      <div class="shop-section-sub">Defenders of the sunken city.</div>
+      <div class="shop-section-grid" id="basicShop"></div>
+    </div>
+    <div class="shop-section">
+      <div class="shop-section-title">⚡ Legendary Sharks</div>
+      <div class="shop-section-sub">Ancient, rare and powerful sharks.</div>
+      <div class="shop-section-grid" id="customShop"></div>
+    </div>
+    <button id="closeSharkShop" class="shop-x" aria-label="Close Shark Shop">×</button>
+  </div>
+</div>
+
+<script>
+const sharkShopIcon=document.getElementById("sharkShopIcon");
+const sharkShopOverlay=document.getElementById("sharkShopOverlay");
+const closeSharkShop=document.getElementById("closeSharkShop");
+sharkShopIcon.onclick=()=>sharkShopOverlay.classList.add("open");
+closeSharkShop.onclick=()=>sharkShopOverlay.classList.remove("open");
+sharkShopOverlay.addEventListener("click",e=>{if(e.target===sharkShopOverlay)sharkShopOverlay.classList.remove("open")});
+</script>
+
+<script>
+document.addEventListener("pointerdown", function(e){
+  const hand=document.createElement("div");
+  hand.className="tap-hand-indicator";
+  hand.textContent="👆";
+  hand.style.left=e.clientX+"px";
+  hand.style.top=e.clientY+"px";
+  document.body.appendChild(hand);
+  setTimeout(()=>hand.remove(),750);
+}, true);
+</script>
+
+</body></html>
